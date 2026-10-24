@@ -67,7 +67,7 @@ tool في D1 : re_assign_package_zone_bosta   ← reassign_to_bosta · rejected 
 
 ## النتيجة والسجل
 
-- **HTTP 200 دايمًا** لأي نتيجة عمل — الفشل جوّه `status` ∈ `success` · `warning` · `error` · `already` · `rejected`. (غير 2xx بيخلّي `ecoApi` يفقد الرسالة.) `400` للطلب الباظ · `404` لأوردر مش موجود وقت الكتابة · `405` لـ GET.
+- **HTTP 200 دايمًا** لأي نتيجة عمل — الفشل جوّه `status` ∈ `success` · `warning` · `error` · `already` · `rejected`. (غير 2xx بيخلّي `ecoApi` يفقد الرسالة.) `400` للطلب الباظ · `405` لـ GET. (أوردر مش موجود وقت الكتابة = 200 + `status:'error'`.)
 - عقد `results[]`: الرد أوردر واحد — مفيش ترتيب يتطابق.
 - **صفوف D1** (`log-values.json` · `node check-log-values.mjs` لازم يعدّي):
   | `tool` / `type` | امتى | `extra.result` |

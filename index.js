@@ -582,7 +582,7 @@ async function handleReassign(request, env) {
 
   // ① قراءة جديدة — الفحص بيتعاد عليها هي، مش على اللي الواجهة شافته (worker-builder ⑩ ④)
   const d0 = await shopifyGQL(env, token, Q_ORDER_BY_ID, { id: `gid://shopify/Order/${orderId}` }, 'order_fresh', costLog);
-  if (!d0.data.order) return json({ ok: false, status: 'error', error: 'الأوردر مش موجود على شوبيفاي', queryCost: costLog }, 404, request);
+  if (!d0.data.order) return json({ ok: false, status: 'error', error: 'الأوردر مش موجود على شوبيفاي', queryCost: costLog }, 200, request);
   const { shaped: before, digests } = shapeOrder(d0.data.order);
   const ev = evaluateEligibility(before);
   const ctx = { orderId: before.orderId, orderName: before.orderNumber, employee };

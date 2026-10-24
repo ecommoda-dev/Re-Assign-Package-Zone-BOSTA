@@ -154,7 +154,7 @@ sec('⑤ التحويل — S2 والرفض');
   reset(); mk(4000000000003, '#4003', { manual_status: 'Ready', zone: 'Cairo+Giza' }); store.get('4000000000003').mf.manual_status = 'Shipped';
   x = await post('action=reassign_to_bosta', { orderId: '4000000000003', employee: 'E' });
   is(x.j.status === 'rejected', 'لقطة قديمة في المتصفح: الفحص بيتعاد على قراءة جديدة → rejected');
-  x = await post('action=reassign_to_bosta', { orderId: '99999999999', employee: 'E' }); is(x.r.status === 404 && x.j.status === 'error', 'orderId مش موجود → 404');
+  x = await post('action=reassign_to_bosta', { orderId: '99999999999', employee: 'E' }); is(x.r.status === 200 && x.j.status === 'error' && !x.j.ok, 'orderId مش موجود → 200 + status:error (الرسالة توصل للواجهة)');
   x = await post('action=reassign_to_bosta', { orderId: 'abc', employee: 'E' }); is(x.r.status === 400, 'orderId مش رقم → 400');
   x = await post('action=reassign_to_bosta', { orderId: '4000000000003' }); is(x.r.status === 400, 'من غير employee → 400');
   const g = await worker.fetch(new Request('https://w.dev/?action=reassign_to_bosta', { headers: H }), env); is(g.status === 405, 'GET على reassign_to_bosta → 405');
