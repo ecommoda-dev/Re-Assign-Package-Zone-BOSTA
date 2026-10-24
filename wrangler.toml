@@ -1,0 +1,44 @@
+name               = "re-assign-package-zone-bosta-worker"   # لازم يطابق اسم الـ Worker في داشبورد كلاودفلير بالحرف
+main               = "index.js"
+compatibility_date = "2025-01-01"
+workers_dev        = true
+
+[observability]
+enabled = true
+
+# ─────────────────────────────────────────────────────────────
+# 🔴 الريبو ده **Worker وبس** — الواجهة (`Re-Assign-Package-Zone-BOSTA.html`) جوّه
+#    ريبو `Delivery-COD-Operations-Center` (قسم «أدوات أخرى»). مفيش GitHub Pages هنا.
+#
+# 🔴 `Build watch paths` — الغلطة فيها قاتلة وصامتة (وقت الإنشاء مش بعدين):
+#      Include paths : index.js        ← chip منفصل
+#                      wrangler.toml   ← chip منفصل
+#      Exclude paths : (فاضي)
+#    ⛔ الحقل chips مش نص: الاتنين في سطر واحد = chip واحد باسم مش موجود =
+#       **مفيش أي push هيبني تاني، ولا خطأ ولا رسالة، والـ Worker بيتجمّد.**
+#    ⚠️ وأي ملف جديد يعتمد عليه الـ Worker لازم يتضاف للـ paths.
+#    (`ecommoda-tool-migration-playbook` §13-ب)
+# ─────────────────────────────────────────────────────────────
+
+[[d1_databases]]
+binding       = "DB"
+database_name = "ecommoda-dev-logs"
+database_id   = "90db62d3-bd7e-4d92-912b-10fc78eeb565"
+
+# 🔴 [vars] **من git بس** — تعديلها من الداشبورد بيتمسح مع أول push (worker-builder Step 8).
+[vars]
+SHOP_DOMAIN = "6c7e1a-53.myshopify.com"
+
+# ─────────────────────────────────────────────────────────────
+# الأسرار — Dashboard → Settings → Variables → علّم "Secret". ممنوع تتكتب في الريبو.
+# ⚠️ بعد إضافة أي سر → Deployments → Version History → ⋯ → **Promote**
+#    (من غيره القيمة undefined → كل نداء Unauthorized).
+#
+# WORKER_SECRET   ← 🔴 **قيمة مجموعة `delivery_cod_ops`** — نفس القيمة بالحرف على
+#                    Worker الهب وباقي أدواته. الهب بيبعت سر المجموعة؛ قيمة
+#                    مختلفة = `401` على كل نداء من الصفحة.
+# CLIENT_ID       ← Shopify Custom App (نفس تطبيق الستاك)
+# CLIENT_SECRET   ← Shopify Custom App
+#
+# 🔴 صلاحية `write_orders` لازم تكون على التطبيق (`?action=diag` بيقول).
+# ─────────────────────────────────────────────────────────────

@@ -1,0 +1,32 @@
+{
+  "tool": "re_assign_package_zone_bosta",
+  "since": "index.js v1.0.0",
+  "logAnchors": [
+    "safeWrite"
+  ],
+  "types": {
+    "reassign_to_bosta": {
+      "result": [
+        "success",
+        "warning",
+        "error"
+      ],
+      "stage": "write",
+      "desc": "محاولة تحويل شحنة لبوسطة اتبعتت لشوبيفاي (الحالة + الزون + المندوب + العلامة في نداء ذرّي واحد)"
+    },
+    "rejected": {
+      "result": [
+        "rejected",
+        "already"
+      ],
+      "stage": "preflight",
+      "desc": "اتوقف قبل أي كتابة: الأوردر مش مؤهل (rejected) أو اتحوّل لبوسطة قبل كده (already)"
+    },
+    "update": {
+      "tool": "metafields_change",
+      "result": null,
+      "stage": null,
+      "desc": "السجل المشترك لتغيّر حالة S1/S2 — بيتكتب بعد التحويل الناجح (extra.source = re_assign_package_zone_bosta)"
+    }
+  }
+}
