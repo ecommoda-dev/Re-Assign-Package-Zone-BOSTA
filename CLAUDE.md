@@ -2,12 +2,12 @@
 
 # تحويل الشحنة إلى بوسطة — Re-Assign Package Zone BOSTA (`Re-Assign-Package-Zone-BOSTA`)
 
-![version](https://img.shields.io/badge/worker-v1.0.0-blue)
+![version](https://img.shields.io/badge/worker-v1.1.0-blue)
 
 **بتعمل إيه:** Worker بيدور على أوردر (برقمه أو بـ Order ID من الباركود)، **بيحكم هو** إذا كان مؤهل
 يتحوّل لبوسطة، وبيكتب التحويل على شوبيفاي بنداء واحد ذرّي.
 **مين بيستخدمها:** الشحن والتحصيل — من جوّه هب `Delivery-COD-Operations-Center` (قسم «أدوات أخرى»).
-**الإصدار:** `v1.0.0` (`WORKER_VERSION` في `index.js`)
+**الإصدار:** `v1.1.0` (`WORKER_VERSION` في `index.js`)
 
 > 🔴 **الريبو ده Worker وبس.** الواجهة `Re-Assign-Package-Zone-BOSTA.html` عايشة في ريبو
 > `Delivery-COD-Operations-Center` وهي **النسخة الوحيدة** (نفس نمط `Partial-Delivery` و`Courier-Names`).
@@ -30,7 +30,10 @@ tool في D1 : re_assign_package_zone_bosta   ← reassign_to_bosta · rejected 
 | `diag` | GET | فحص ذاتي بلا كتابة: السر وبصمته · المتغيرات · D1 · OAuth · **صلاحية `write_orders`** · **تعريفات الميتافيلدز الأربعة والقيم المطلوبة في الـ choice list** · `throttleStatus` و`actualQueryCost` |
 | `get_order&q=` | GET | بحث (اسم أو Order ID) → `{ found, order, eligibility }` — **قراءة بحتة** |
 | `reassign_to_bosta` | POST `{ orderId, employee }` | التحويل (الجسم **مفيهوش** أي قيم ميتافيلد — الـ Worker هو اللي بيحدد الأهداف) |
-| `get_logs` · `get_logs_count` · `get_logs_export` | GET | سجل الأداة (`export` بيرجّع `cap`/`total`/`truncated`) |
+| `get_logs` · `get_logs_count` · `get_logs_export` | GET | سجل الأداة (`export` بيرجّع `cap`/`total`/`truncated`). 🔴 **فلاتر v1.1.0 (server-side، نفسها في التلاتة):** `employees` · `types` · **`results`** (من `extra.result`) · **`orderName`** · **`notes`** · `search` · `dateFrom`/`dateTo` (`YYYY-MM-DD` — ⚠️ بيقارن بيوم **UTC** المخزّن) · `sortBy` ∈ `date · time · employee · orderName · type · machine · result` + `sortDir` |
+| `get_log_options` | GET | 🔴 v1.1.0 — الموظفين اللي ليهم صفوف تحت الأداة (`{ employees: [{ value, count }] }`) لفلتر الموظف في تاب السجل. من D1 مش قايمة ثابتة |
+
+> 🔴 **الواجهة بتسكن أكتر من أوردر (v1.1.0 · 26-10-2026) والـ Worker لسه «أوردر واحد في النداء»** — `get_order` و`reassign_to_bosta` ما اتغيّروش، والصفحة هي اللي بتتابع الدفعة (فحص ٢ في نفس الوقت · تحويل متتابع). **ما اتضافش endpoint دفعة عن قصد:** كل أوردر بيتحوّل بـ `compareDigest` بتاعه وقراءة تحقق لوحده، فنتيجة كل أوردر مستقلة ومفيش «دفعة ناجحة نص نص». ميزانية شوبيفاي مشتركة بين Workers الستاك — ٣ نداءات GraphQL للأوردر.
 
 > ⛔ **مفيش `verify_employee`/`log_logout`** — الدخول والخروج في Worker الهب. دالة بلا endpoint = كود ميت.
 
@@ -91,7 +94,7 @@ tool في D1 : re_assign_package_zone_bosta   ← reassign_to_bosta · rejected 
 ## الفحص
 
 ```bash
-node docs/worker-check.mjs      # ٧٤ بند — شوبيفاي ووهمي + D1 وهمي (الأهلية · الكتابة الذرّية · compareDigest · الحالات · السجل · diag)
+node docs/worker-check.mjs      # ٨٦ بند — شوبيفاي ووهمي + D1 وهمي (الأهلية · الكتابة الذرّية · compareDigest · الحالات · السجل وفلاتره · diag)
 node check-log-values.mjs       # قيم اللوج — exit 0
 ```
 
@@ -112,5 +115,9 @@ node check-log-values.mjs       # قيم اللوج — exit 0
 | ecommoda-constants | **v3.1.0** |
 | ecommoda-order-lifecycle | **v1.8.0** — ⚠️ الانتقال `Ready → Confirmed` مش في جدولها (قرار أحمد) |
 | shopify-graphql-helper | **v1.1.0** |
+
+> ⚠️ **بصمة v1.1.0 (26-10-2026):** تعديل الـ Worker في النسخة دي كان **توسيع `buildLogFilterSQL`** (`results` · `orderName` · `notes`) و`getLogOptions` + مفتاح ترتيب `type` — **ما اتراجعش على نسخ أحدث من المهارات** (الجدول فوق ما اتحدّثش عن قصد: ادعاء مراجعة ما حصلتش أسوأ من بصمة قديمة). الواجهة (في ريبو الهب) اتراجعت على `ecommoda-html-builder` v8.5.0. 🔴 `buildLogFilterSQL` هنا **انحرفت** عن النسخة في `ecommoda-worker-builder` → `references/shared-functions.md` بالباراميترات التلاتة — لو اتقرر تتعمم، تتنقل للمهارة (قرار أحمد).
+
+آخر تحديث: 26-10-2026 — 10:40
 
 </div>
