@@ -72,7 +72,7 @@ sec('① الحماية');
   let x = await get('action=get_config', env, {}); is(x.r.status === 401, 'بلا Authorization → 401');
   x = await get('action=get_config', { ...env, WORKER_SECRET: undefined }); is(x.r.status === 500 && /غير مضبوط/.test(x.j.error), 'سر غايب → 500 مش "Bearer undefined" مقبول');
   x = await get('action=get_config', env, { ...H, Authorization: 'Bearer undefined' }); is(x.r.status === 401, '"Bearer undefined" مرفوض والسر موجود');
-  x = await get('action=get_config'); is(x.j.version === '1.0.0' && x.j.tool === 're_assign_package_zone_bosta', 'get_config بيرجّع النسخة والـ tool');
+  x = await get('action=get_config'); is(x.j.version === '1.1.0' && x.j.tool === 're_assign_package_zone_bosta', 'get_config بيرجّع النسخة والـ tool');
   x = await get('action=get_config', env, { ...H, Origin: 'https://evil.example' }); is(x.r.headers.get('Access-Control-Allow-Origin') === 'https://ecommoda-dev.github.io', 'CORS صارم — أصل غريب مابيتعكسش');
 }
 
@@ -225,6 +225,33 @@ sec('⑦ التشخيص والسجل');
   is(!JSON.stringify(x.j).includes('"sec"') && !/Bearer/.test(JSON.stringify(x.j)), 'diag مابيرجّعش قيمة السر');
   is(/بصمة [0-9a-f]{8}/.test(byLabel['بصمة WORKER_SECRET'].detail), 'بصمة السر (٨ hex)');
   const l = await get('action=get_logs_export'); is(l.j.cap === 2000 && 'truncated' in l.j && 'total' in l.j, 'get_logs_export بيرجّع cap/total/truncated');
+}
+
+sec('⑧ السجل — فلاتر الأعمدة (v1.1.0)');
+{
+  const seen = [];
+  const rec = { prepare: (sql) => ({ bind: (...a) => { seen.push({ sql, a }); return { all: async () => ({ results: /GROUP BY employee/.test(sql) ? [{ employee: 'Ahmed_Ibraheem', n: 3 }, { employee: 'Sara', n: 1 }] : [] }), first: async () => ({ total: 0 }), run: async () => ({}) }; } }) };
+  const e2 = { ...env, DB: rec };
+  let x = await get('action=get_logs&results=success,warning&orderName=55&notes=Confirmed&employees=A,B&types=rejected&dateFrom=2026-10-01&dateTo=2026-10-31&sortBy=type&sortDir=asc&limit=100&offset=0', e2);
+  const q = seen.find(c => /FROM logs/.test(c.sql) && /LIMIT/.test(c.sql));
+  is(x.j.ok && q && /json_extract\(extra, '\$\.result'\) IN \(\?,\?\)/.test(q.sql), 'results[] بيتحوّل لـ json_extract(extra,$.result) IN');
+  is(q && q.a.includes('success') && q.a.includes('warning') && q.a.includes('%55%') && q.a.includes('%Confirmed%'), 'orderName و notes بيتبعتوا bind (مش نص في الـ SQL)');
+  is(q && /order_name LIKE \?/.test(q.sql) && /notes LIKE \?/.test(q.sql) && !/55/.test(q.sql), 'مفيش قيمة من العميل متلزقة في نص SQL');
+  is(q && /ORDER BY type ASC, timestamp DESC/.test(q.sql), 'الترتيب بـ type (قايمة بيضاء) مع كاسر تعادل');
+  is(q && /type NOT IN \('login','logout'\)/.test(q.sql) && q.a[0] === 're_assign_package_zone_bosta', 'login/logout مستثنيين server-side والأداة متفلترة بـ tool');
+  seen.length = 0;
+  x = await get('action=get_logs_count&results=error', e2);
+  is(x.j.ok && seen.some(c => /COUNT\(\*\)/.test(c.sql) && /json_extract/.test(c.sql)), 'get_logs_count بياخد نفس فلتر النتيجة (مصدر واحد)');
+  x = await get('action=get_logs&sortBy=bogus%3B%20DROP%20TABLE%20logs', e2);
+  is(x.j.ok && seen.some(c => /ORDER BY timestamp DESC/.test(c.sql)), 'مفتاح ترتيب مش في القايمة بيرجع للافتراضي بلا خطأ');
+  x = await get('action=get_log_options', e2);
+  is(x.j.ok && x.j.employees.length === 2 && x.j.employees[0].value === 'Ahmed_Ibraheem' && x.j.employees[0].count === 3, 'get_log_options بيرجّع الموظفين بعدّادهم');
+  is(seen.some(c => /GROUP BY employee/.test(c.sql) && /NOT IN \('login','logout'\)/.test(c.sql)), 'قايمة الموظفين مستثني منها login/logout');
+  x = await get('action=get_log_options', { ...env, DB: undefined });
+  is(x.r.status === 500 && /DB/.test(x.j.error), 'من غير D1 → رسالة باسم الـ binding');
+  x = await get('action=get_log_options', env, { Origin: 'https://ecommoda-dev.github.io' });
+  is(x.r.status === 401, 'get_log_options محمي بالسر');
+  x = await get('action=get_config'); is(x.j.version === '1.1.0', 'النسخة 1.1.0');
 }
 
 console.log(`\n${fail ? '❌' : '✅'} عدّى ${pass} · فشل ${fail}`);

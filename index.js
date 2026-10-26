@@ -32,12 +32,16 @@
 //    الدورة الأصلية كانت `Confirmed + RETURN` — أداة رفع بوسطة هتعملها شحنة
 //    استبدال. القيمة في ثابت واحد (`S2_TARGET`).
 //
+// 🔴 **v1.1.0 (26-10-2026) — الواجهة بقت بتسكن أكتر من أوردر وليها تاب سجل بفلاتر رأس العمود:**
+//    السجل بقى بيفلتر **server-side** على النتيجة (`results`) ورقم الأوردر (`orderName`) والملاحظات
+//    (`notes`) جنب الموظف/النوع/التاريخ، وفيه `get_log_options` (قايمة الموظفين اللي كتبوا في السجل).
+//    الفعل نفسه (`reassign_to_bosta`) **أوردر واحد في النداء** — الواجهة هي اللي بتتابع الدفعة.
 // ⛔ **ممنوع يتضاف هنا أي فعل تاني.** تحويل لبوسطة وبس.
 // ⛔ الدخول والخروج في Worker الهب (`delivery-cod-operations-center-worker`) —
 //    الـ Worker ده مالوش `verify_employee`/`log_logout` عن قصد.
 // ══════════════════════════════════════════════════════════════
 const TOOL_NAME      = 're_assign_package_zone_bosta';
-const WORKER_VERSION = '1.0.0';
+const WORKER_VERSION = '1.1.0';
 const SECRET_GROUP   = 'delivery_cod_ops';
 
 // ─── §CONSTANTS::status — القيم الحرفية (casing وعلامات الترقيم load-bearing) ───
@@ -169,6 +173,7 @@ function buildLogFilterSQL(select, {
   employee  = null, employees = null,
   type      = null, types     = null,
   search    = null,
+  results   = null, orderName = null, notes = null,
   dateFrom  = null, dateTo    = null,
 } = {}) {
   let sql = `${select} FROM logs WHERE type NOT IN ('login','logout')`;
@@ -188,6 +193,12 @@ function buildLogFilterSQL(select, {
     sql += ' AND (order_name LIKE ? OR notes LIKE ?)';
     b.push(`%${search}%`, `%${search}%`);
   }
+  // 🔴 v1.1.0 — فلاتر أعمدة السجل (data-table-standard): النتيجة قايمة (`extra.result`) والباقي بحث لكل عمود
+  if (Array.isArray(results) && results.length) {
+    sql += ` AND json_extract(extra, '$.result') IN (${results.map(() => '?').join(',')})`; b.push(...results);
+  }
+  if (orderName) { sql += ' AND order_name LIKE ?'; b.push(`%${orderName}%`); }
+  if (notes)     { sql += ' AND notes LIKE ?';      b.push(`%${notes}%`); }
   if (dateFrom) { sql += ' AND substr(timestamp, 1, 10) >= ?'; b.push(dateFrom); }
   if (dateTo)   { sql += ' AND substr(timestamp, 1, 10) <= ?'; b.push(dateTo); }
 
@@ -213,7 +224,7 @@ async function getLogs(db, { limit = 100, offset = 0, sortBy, sortDir, ...filter
 // ⚠️ المفاتيح لازم تطابق `data-sort-key` في الواجهة **حرفيًا** — مفتاح مش في
 //    القايمة بيرجع للافتراضي في صمت، فالعمود يبان إنه اترتّب وهو مااترتّبش.
 const LOG_SORT_COLUMNS = {
-  date: 'timestamp', time: 'timestamp', employee: 'employee', orderName: 'order_name',
+  date: 'timestamp', time: 'timestamp', employee: 'employee', orderName: 'order_name', type: 'type',
   machine: `json_extract(extra, '$.machine')`, result: `json_extract(extra, '$.result')`,
 };
 
@@ -254,6 +265,17 @@ async function getLogsExport(db, filters = {}) {
 }
 
 /**
+ * قوايم فلاتر السجل — الموظفين اللي ليهم صفوف تحت الأداة دي (بعدّاد) — `login`/`logout` مستثنيين.
+ * بتتجاب من D1 مش من قايمة ثابتة: موظف جديد بيظهر في الفلتر أول ما يكتب أول صف.
+ */
+async function getLogOptions(db, tool) {
+  const rows = (await db.prepare(
+    `SELECT employee, COUNT(*) AS n FROM logs WHERE tool = ? AND type NOT IN ('login','logout') AND employee IS NOT NULL AND employee != '' GROUP BY employee ORDER BY employee`
+  ).bind(tool).all()).results || [];
+  return { employees: rows.map(r => ({ value: r.employee, count: r.n })) };
+}
+
+/**
  * بيقرا فلاتر السجل من الـ query string — CSV للقوايم
  * (employees=ahmed,sara · types=cancel,cancel_failed).
  * الاسم المفرد لسه مقبول للتوافق الرجعي.
@@ -261,9 +283,12 @@ async function getLogsExport(db, filters = {}) {
 function logParamsFrom(url, tool) {
   const csv = (k) => (url.searchParams.get(k) || '')
     .split(',').map(s => s.trim()).filter(Boolean);
-  const employees = csv('employees'), types = csv('types');
+  const employees = csv('employees'), types = csv('types'), results = csv('results');
   return {
     tool,
+    results:   results.length ? results : null,
+    orderName: (url.searchParams.get('orderName') || '').trim().slice(0, 40) || null,
+    notes:     (url.searchParams.get('notes')     || '').trim().slice(0, 80) || null,
     employees: employees.length ? employees : null,
     employee:  url.searchParams.get('employee') || null,
     types:     types.length ? types : null,
@@ -806,6 +831,10 @@ export default {
       if (action === 'reassign_to_bosta') return await handleReassign(request, env);
 
       // ─── §LOG-ENDPOINTS ───
+      if (action === 'get_log_options') {
+        assertEnvDb(env);
+        return json({ ok: true, ...(await getLogOptions(env.DB, TOOL_NAME)) }, 200, request);
+      }
       if (action === 'get_logs' || action === 'get_logs_count' || action === 'get_logs_export') {
         assertEnvDb(env);
         const filters = logParamsFrom(url, TOOL_NAME);
